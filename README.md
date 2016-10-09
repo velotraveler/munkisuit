@@ -171,11 +171,11 @@ After you select this box, you will be prompted for your password.
 
     - select "Enable MunkiSetDefaultCatalogProcessor"
 
-###Start the Downloads
+####Start the Downloads
 * go back to "Repos & Recipes" pane, and click on "Run Recipes Now" in middle of pane
 * you should see a status display as each recipe runs
 
-###Confirm that AutoPkgr will wake up automatically
+####Confirm that AutoPkgr will wake up automatically
 To confirm that you've told AutoPkgr to schedule unattended runs on a daily
 basis, make sure its launchd job is on the system:
 ```

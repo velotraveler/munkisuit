@@ -36,7 +36,6 @@ any one-off plist changes instead of editing them by hand.  See
 the "patches" directory for some examples.
 
 ##SOFTWARE INSTALLATION - EXISTING REPOSITORY
-
 * Log in as the same user that manages autopkg/AutoPkgr/munki.  The
 Munki admin preferences should already point to your repository.  This
 user is assumed to be able to sudo to root when needed in order to
@@ -106,7 +105,6 @@ log show --style syslog --predicate 'senderImagePath contains[cd] "TimeMachine"'
 ```
 
 ##SOFTWARE INSTALLATION - NEW REPOSITORY
-
 If you are building a new Munki server, use these scripts to speed
 things up:
 
@@ -137,6 +135,7 @@ changes in each of these AutoPkgr sections:
 
 ####Install section
 If desired, update to the latest Autopkg and Munki tools
+
 ####Repos & Recipes section
 In the upper pane titled "Repositories":
 *   check the first "Repo Clone URL", github.com/autopkg/recipes.git
@@ -155,12 +154,15 @@ If you don't see everything you need, search online for a recipe for
 your desired app, then check to see if that recipe repository is already
 in AutoPkgr's option in the "Repositories" pane, or add it manually if
 you trust that source.
+
 ####Schedule section
 *   select "Enable scheduled AutoPkg runs"
 After you select this box, you will be prompted for your password.
 *   change run time as desired, such as "Daily at 1:00 AM"
 *   optionally select "Update all repos before each AutoPkg run" (see AutoPkgr docs for details)
+
 ####Notifications - set up email or chat notifications if desired
+
 ####Folders & Integrations
 *   Configure AutoPkg - select "Verbose AutoPkg Run"
 *   Configure Munki Tools
@@ -168,6 +170,7 @@ After you select this box, you will be prompted for your password.
     - should already have correct Munki repo
 
     - select "Enable MunkiSetDefaultCatalogProcessor"
+
 ###Start the Downloads
 * go back to "Repos & Recipes" pane, and click on "Run Recipes Now" in middle of pane
 * you should see a status display as each recipe runs

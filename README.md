@@ -140,7 +140,9 @@ If desired, update to the latest Autopkg and Munki tools
 ####Repos & Recipes section
 In the upper pane titled "Repositories":
 *   check the first "Repo Clone URL", github.com/autopkg/recipes.git
+
 In the lower pane titled "Recipes":
+
 *   type "munki" in the search filter box titled "Filter recipes"      
 *   select the recipes that import the products you want into Munki,
 for example:

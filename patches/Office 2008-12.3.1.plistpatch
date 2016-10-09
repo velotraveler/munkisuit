@@ -1,0 +1,20 @@
+# Edits for Office 2008-12.3.1 updater
+
+# mark as an update for Office2008
+set name "Office2008_update"
+delete update_for
+add update_for array
+add update_for:0 string "Office2008"
+
+# describe the prerequisites needed before the updater can be installed
+delete requires
+add requires array
+add requires:0 string "Office2008-12.2.0"
+
+# Tell Munki how to detect that this package is installed
+delete installs
+add installs array 
+add installs:0 dict
+add installs:0:type string "plist"
+add installs:0:path string "/Applications/Microsoft Office 2008/Office/MicrosoftComponentPlugin.framework/Resources/Info.plist"
+add installs:0:CFBundleShortVersionString string "12.3.1"

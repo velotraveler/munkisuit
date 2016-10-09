@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# plistpatcher - execute a file of PlistBuddy commands to batch-edit a plist
+
+set -u
+
+if [ ${DEBUG:-no} = YES ]
+then
+	set -x
+fi
+
+USAGE="Usage: $0 <plist-path> [patch-command-path]"
+
+plistpath=${1:?$USAGE}
+commandpath=${2:-}
+
+if [ "${commandpath:-}" = "" ]   # is there a default file here?
+then
+	if [ -r "${plistpath%.pkginfo}.plistpatch" ]
+	then
+		commandpath="${plistpath%.pkginfo}.plistpatch"
+	fi
+fi
+
+buddy=/usr/libexec/PlistBuddy
+
+if [ ! -x "$buddy" ]
+then
+	echo "$0: cannot execute \"$buddy\" - this won't work on Tiger"
+	exit 24
+fi
+
+if [ ! -w "$plistpath" ]
+then
+	echo "$0: unable to write to \"$plistpath\": status $?"
+	exit 23
+fi
+
+if [ "$commandpath" = "-" ]
+then :
+elif [ -r "$commandpath" ]
+then
+	exec < "$commandpath"
+else
+	echo "$0: Cannot read \"$commandpath\": status $?"
+	exit 22
+fi
+
+while read -r command therest
+do
+	if [ "${command:-x}" = "#" ] || [ "${command:-}" = "" ]  # comment
+	then
+		continue
+	fi
+
+	if [ "${therest:-}" = "" ]
+	then
+		echo "$0: WARNING: cannot parse rest of \"$command\" command, ignoring"
+		continue
+	fi
+
+	"$buddy" -x -c "$command $therest" "$plistpath"
+	rc=$?
+	if [ $rc -ne 0 ]
+	then
+ 		if [ "$command" != "delete" ]
+		then
+			echo "$0: WARNING: command \"PlistBuddy -x -c '$command $therest'\" had non-zero exit status: $rc"
+		else
+			echo "$0: PlistBuddy error is OK when deleting keys"
+		fi
+	fi
+done

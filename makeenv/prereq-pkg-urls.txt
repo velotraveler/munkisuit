@@ -1,0 +1,4 @@
+# package-ID                 URL
+com.googlecode.munki.admin   https://github.com/munki/munki/releases/download/v2.4.0/munkitools-2.4.0.2561.pkg
+com.github.autopkg.autopkg   https://github.com/autopkg/autopkg/releases/download/v0.6.1/autopkg-0.6.1.pkg
+/Applications/AutoPkgr.app   https://github.com/lindegroup/autopkgr/releases/download/v1.4.1/AutoPkgr-1.4.1.dmg

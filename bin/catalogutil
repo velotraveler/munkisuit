@@ -1,0 +1,597 @@
+#!/usr/bin/env python
+
+"""General-purpose catalog management utility for Munki
+
+* "Promote" packages (i.e. copy from "testing" catalog to "production"
+catalog) based on how long ago they were placed in the source catalog.
+Execution can be run out of launchd/cron and coordinated with AutoPkgr
+if desired
+
+* "Suspend" packages if you decide they're not ready for production
+
+* "Reinstate" a package that was suspended if you decide it's OK to roll
+forward with it
+
+* Set the catalog(s) of a package
+
+* Display contents of a catalog
+
+Can be run from launchd along with autopkg/AutoPkgr so that vendor
+updates get sent out automatically unless a sysadmin interferes.
+
+All write operations leave an audit trail in syslog.  An additional
+audit trial is left in the "_catalogutil_operations" key in the package's
+plistinfo, which can be reviewed with the "catalogutil history" command.
+
+Written by Ed Ravin for the Park Slope Food Coop - https://foodcoop.com
+
+https://github.com/velotraveler/munkisuit
+
+shout-outs to Greg Neagle, Joshua D. Miller, Graham Pugh, and Jesse Peterson
+for leading the way with their individual versions of the "autopromote"
+functionality.
+
+"""
+
+
+import os, subprocess, plistlib, sys
+from ConfigParser import SafeConfigParser
+from datetime import datetime, timedelta
+from dateutil.parser import parse as dateparse
+
+from syslog import syslog, LOG_NOTICE
+from optparse import OptionParser, SUPPRESS_HELP
+from xml.parsers.expat import ExpatError
+from os.path import abspath
+
+from launchdsimple import PseudoCrontab, PseudoCrontabException
+
+globals = {}
+applist = []
+catlist = set()
+catkey = '_catalogutil_operations'
+ourdomain = 'munkisuit.catalogutil'
+RunMakeCatalogsOnExit = False
+
+def logmsg(message, verbosemsg=False):
+    if globals['dry_run']:
+        message= "DRY RUN: " + message
+
+    # if flagged as verbose, only print it if --verbose option set
+    if (not verbosemsg) or (verbosemsg and globals['verbose']):
+        if globals['debug'] or globals['no_logging'] or sys.stdout.isatty():
+            print message
+        if not globals['debug'] and not globals['no_logging']:
+            syslog(LOG_NOTICE, message)
+    else:
+        syslog(LOG_NOTICE, message)
+
+def bomb(message, exitcode=23):
+    message= "ERROR: " + message
+    logmsg(message)
+    if not sys.stdout.isatty():   # non-interactive?
+        sys.stderr.write(message) # yes, echo fatal errors to stdout
+    sys.exit(exitcode)
+
+
+def run_makecatalogs():
+    munki_makecatalogs_path= globals['munkibin'] + "/makecatalogs"
+    logmsg("running %s ..." % munki_makecatalogs_path)
+    if globals['dry_run']:
+        return
+
+    try:
+        # run makecatalogs
+        output= subprocess.check_output([munki_makecatalogs_path], stderr= subprocess.STDOUT)
+        for line in output.split("\n"):
+            logmsg(line, verbosemsg=True)
+    except (subprocess.CalledProcessError, StandardError) as error:
+        logmsg("ERROR: run of %s failed: %s" % (munki_makecatalogs_path, error))
+
+def getplistobject(filepath):
+        try:
+            pkginfo = plistlib.readPlist(filepath)
+        except IOError, inst:
+            logmsg("ERROR: I/O error reading %s: %s" %(filepath, inst))
+            return None
+        except ExpatError, inst:
+            logmsg("ERROR: XML parsing error on file %s: %s" % (filepath, inst))
+            return None
+        except BaseException, inst:
+            logmsg("ERROR: Unexpected error on %s: %s" % (filepath, inst))
+            return None
+
+        return pkginfo
+
+
+def pkgsinfo_plists(pkgsinfopath):
+    """
+    Generate plist objects for each valid plist in the pkgsinfo tree
+    """
+    for dirpath, dirnames, filenames in os.walk(pkgsinfopath, followlinks=True):
+        # Don't recurse into directories that start with a period
+        for dirname in dirnames:
+            if dirname.startswith('.'):
+                dirnames.remove(dirname)
+        for filename in filenames:
+            # skip files that start with a period as well
+            if filename.startswith('.'):
+                continue
+
+            filepath = os.path.join(dirpath, filename)
+            pkginfo= getplistobject(filepath)
+
+            if pkginfo is None:
+                logmsg("WARNING: cannot load plist from file %s, ignoring" % filepath)
+                continue
+
+            if not 'name' in pkginfo:
+                logmsg("WARNING: plist file %s missing <name> tag, ignoring" % filepath)
+                continue
+
+            yield(pkginfo, filepath)
+
+
+def load_pkgsinfo(pkgsinfopath):
+    """
+    Read all pkgsinfo files into a global data structure so we can
+    easily scan it
+    """
+
+    global applist
+    global catlist
+
+    for plist, currentfile in pkgsinfo_plists(pkgsinfopath):
+        catlist = catlist | set(plist['catalogs'])
+        try:
+            applist.append(
+                { 'name': plist['name'],
+                  'version': plist['version'],
+                  'filename': currentfile,
+                  'plist': plist,
+                  'creation_date': str2time(str(plist['_metadata']['creation_date']))
+                })
+        except KeyError, e:
+            logmsg("WARNING: Unable to find required tag %s in file %s - skipping this package info file." % (str(e), currentfile) )
+        # add our key into all plists, in case we update them
+        if catkey not in plist:
+            plist[catkey]= {}
+    # sort by application anme and creation date
+    applist= sorted(applist, key=lambda x: x['name'] + '-' + str(x['creation_date']))
+
+def cmd_autopromote(args):
+
+    now = datetime.now()
+    if globals['fake_time']:
+       now= globals['fake_time']
+
+    (fromcat, tocat, days, applist) = args
+    try:
+        daysvalue= float(days)
+    except ValueError:
+        logmsg("ERROR: Supplied days value '%s' does not seem to be a valid number" % days)
+        return
+    if daysvalue <= 0:
+        logmsg("ERROR: Supplied days value must be greater than zero.")
+        return
+
+    # empty/nonexistent catalogs is a normal condition, test for it
+    if not fromcat in catlist:
+        logmsg("WARNING: from-catalog '%s' not currently in repo, no action taken" % fromcat)
+        return
+    if not tocat in catlist:
+        logmsg("WARNING: to-catalog '%s' not currently in repo, will be created if candidate application found." % tocat)
+
+    for appname in applist.split(","):
+        apps= get_unsuspended_app_in_catalog(appname, fromcat)
+        if len(apps) == 0:
+            continue  # no candidates for promotion for this app
+        if globals['debug']:
+            logmsg("found candidate application(s) to test for promotion after %0.1f days: %s" % (daysvalue, apps))
+
+        for app in apps:
+            age = now - app['creation_date']
+            age = age.total_seconds() / 86400
+            logmsg("app '%s' version '%s' has age %0.1f" % (app['name'], app['version'], age), verbosemsg= True)
+            if (age > daysvalue):
+                # time to promote!
+                plist=app['plist']
+                newcats= set(plist['catalogs'])
+                newcats.remove(fromcat)
+                newcats.add(tocat)
+                plist['catalogs']= list(newcats)
+                update_app(app, "Autopromoting app='%s' version='%s' after %0.1f days from catalog '%s' to catalog '%s'" % (app['name'], app['version'], daysvalue, fromcat, tocat) )
+
+def str2time(str):
+    try:
+        timeobj= dateparse(str)
+        return timeobj
+    except ValueError:
+        bomb("Cannot parse time string: %s" % str, 36)
+
+def print_apps(apps_to_print):
+    for app in apps_to_print:
+        logmsg("%-36s %-19s %-19s" % (app['name'], '(' + app['version'] + ')', str(app['creation_date']) ) )
+
+def update_app(app, historymsg, makecatalogs=True):
+    """ Write out an app's pkgsinfo changes, adding a history entry each time
+    """
+    global RunMakeCatalogsOnExit
+    plist= app['plist']
+    if 'history' not in plist[catkey]:
+        plist[catkey]['history']= []
+    now_utc_str = str(datetime.utcnow().strftime("%FT%TZ"))
+    plist[catkey]['history'].append(now_utc_str + " * " + historymsg)
+    if not globals['dry_run']:
+        try:
+            plistlib.writePlist(plist, (app['filename']))
+        except StandardError as error:
+            bomb("Could not update pkginfo for %-1s - error %s" % (app['filename'], str(error)) )
+    logmsg("%s - application='%s' version='%s'" % (historymsg, app['name'], app['version']) )
+    if makecatalogs:
+        RunMakeCatalogsOnExit= True
+
+def cmd_listcat(args):
+    if len(args) == 0:
+        logmsg("Catalogs in repo:")
+        logmsg( ", ".join(sorted(catlist)))
+        return
+    catarg= args[0]
+    if catarg not in catlist:
+        logmsg("Catalog %s not found." % catarg)
+        return
+    apps_in_cat= [app for app in applist if catarg in app['plist']['catalogs'] ]
+    if len(apps_in_cat) > 0:
+        logmsg("Packages in catalog %s:" % catarg)
+        print_apps(apps_in_cat)
+    return
+
+def get_app_by_version(appname, version=""):
+    result_apps= [app for app in applist if app['name'] == appname]
+    if version == "latest":
+        return [result_apps[-1]]  # should already be sorted by date
+    if len(version) > 0:
+        result_apps= [app for app in result_apps if app['version'] == version]
+    return result_apps
+
+def get_unsuspended_app_in_catalog(appname, catalog):
+    possible_apps= get_app_by_version(appname)
+    results= possible_apps + [] # copy of list, please
+    if len(possible_apps) == 0:
+        logmsg("WARNING: Requested application '%s' not found in repository." % appname)
+        return([])
+    # remove apps not in catalog or suspended apps from list
+    for app in possible_apps:
+        plist=app['plist']
+        if catalog not in plist['catalogs']:
+            results.remove(app)
+            continue
+        if 'suspended' in plist[catkey] and plist[catkey]['suspended'] == "True":
+            results.remove(app)
+            continue
+    return(results)
+
+def parse_app(args):
+    app= args[0]
+    version= ""
+    if len(args) > 1:
+        version= args[1]
+    return(app, version)
+
+def cmd_setcat(args):
+    targetcats= sorted(set(args[0].split(',')))
+    (appname, appversion)= parse_app(args[1:])    
+    possible_apps= get_app_by_version(appname, version=appversion)
+
+    if len(possible_apps) == 0:
+        logmsg("No matching package found for app='%s' version='%s'" % (appname, appversion))
+        return
+    if len(possible_apps) > 1:
+        logmsg("Multiple matching packages found for app='%s' version='%s':" % (appname, appversion))
+        print_apps(possible_apps)
+        logmsg("Please specify the desired version and try again")
+        return
+    for cat in targetcats:
+        if cat not in catlist:
+            logmsg("Creating new catalog: %s" % cat)
+    app= possible_apps[0]
+    currentcats= sorted(app['plist']['catalogs'])
+    if set(currentcats) == set(targetcats):
+        logmsg("Application '%s' (%s) is already in the requested catalog(s) %s" % (app['name'], app['version'], currentcats) )
+        return
+    app['plist']['catalogs'] = targetcats
+    update_app(app, "Changing catalog memberships from %s to %s" % (currentcats, targetcats) )
+
+def cmd_history(args):
+    """ Print out history of specified app (or all apps) """
+    if len(args) == 0:
+        possible_apps = applist
+    else:
+        possible_apps= get_app_by_version(*args)
+    if len(possible_apps) == 0:
+       logmsg("No applications found matching: %s" % args)
+       return
+    for app in possible_apps:
+        print_apps([app])
+        plist= app['plist']
+        if not catkey in plist or not 'history' in plist[catkey]:
+            continue  # no history entry in this plist
+        for histline in plist[catkey]['history']:
+            logmsg(histline)
+
+def get_one_app(args):
+    if len(args) != 2:
+        bomb("get_one_app() - expected exactly two arguments, got %s" % args)
+    possible_apps= get_app_by_version(*args)
+    if len(possible_apps) == 0:
+       logmsg("No applications found matching: %s" % args)
+       return(None)
+    if len(possible_apps) > 1:
+       bomb("Duplicate entries found for application %s (%s), please fix repository." % args[0], args[1])
+    return possible_apps[0]
+
+def cmd_suspend(args):
+    app= get_one_app(args)
+    if app is None:
+        return
+    plist= app['plist']
+    if 'suspended' in plist[catkey] and plist[catkey]['suspended'] == "True":
+        logmsg("Application name='%s' version='%s' already suspended, no action taken." % (plist['name'], plist['version']))
+        return
+    plist[catkey]['suspended']= "True"
+    update_app(app, "Suspended", makecatalogs=False)
+
+def cmd_unsuspend(args):
+    app= get_one_app(args)
+    if app is None:
+        return
+    plist= app['plist']
+    if 'suspended' in plist[catkey] and plist[catkey]['suspended'] == "True":
+        del(plist[catkey]['suspended'])
+        update_app(app, "Suspension removed", makecatalogs=False)
+    else:
+        logmsg("Application name='%s' version='%s' was not suspended, no action taken." % (plist['name'], plist['version']))
+
+def cmd_suspensions(args):
+    for app in applist:
+        plist = app['plist']
+        if 'suspended' in plist[catkey] and plist[catkey]['suspended'] == "True":
+            print_apps([app])
+
+def get_schedule(jobmatch):
+    pc= PseudoCrontab()
+    try:
+        output= pc.list(ourdomain + jobmatch)
+        return [line[len(ourdomain)+1:] for line in output]
+    except PseudoCrontabException as error:
+        bomb("Cannot access sudo/launchdctl to list jobs: %s" % error)
+
+def short_schedule(args):
+    '''
+    list out scheduled jobs (or a particular job)
+    Return None if the args indicate we need the full version of "schedule"
+    '''
+    if not sys.stdout.isatty():
+        bomb("This command must be run in an interactive session")
+    if len(args) > 1:
+        return None
+    jobmatch= ".*"
+    if len(args) == 1:
+        jobmatch= "." + args[0] + ".*"
+    output= get_schedule(jobmatch)
+    for line in output:
+        print line
+    return True
+
+def cmd_schedule(args):
+    if short_schedule(args) != None:
+        return
+
+    (jobname, time, cmd)= args[0:3]
+
+    for existing_item in get_schedule(".*"):
+        if existing_item.startswith(jobname + "."):
+            print "Job '%s' already exists, please pick another name" % jobname
+            return
+
+    jobname = ourdomain + "." + jobname
+    timeargs= time.split(':')
+    if len(timeargs) != 2 or not timeargs[0].isdigit() or not timeargs[1].isdigit():
+        bomb("Invalid time specification '%s', see help" % time)
+    (hour, minute) = timeargs
+
+    testcmd = ["sh", "-c", "%s --dry-run --no-logging %s" % (abspath(__file__), cmd) ]
+    if globals['debug']:
+        print "Testing execution: %s" % testcmd
+    try:
+        output = subprocess.check_output(testcmd, stderr= subprocess.STDOUT)
+        failed = False
+        warned = False
+        for line in output.split("\n"):
+            print line
+            if line.find("ERROR: " ) != -1:
+                failed = True
+            if line.find("WARNING: ") != -1:
+                warned = True
+        if failed:
+            print "Test of command failed, no action taken."
+            return
+        if warned:
+            print "-------------------------------------------"
+            print "NOTE: test had warnings, will install anyway."
+            print "non-existent catalog may be OK if it will be created by AutokPkg"
+            print "non-existent application is probably a typo"
+            print "use 'unschedule' command to remove job before retrying"
+            print "-------------------------------------------"
+        print "Command '%s' installed successfully." % cmd
+    except (subprocess.CalledProcessError, StandardError) as error:
+        print error.output
+        print "Test of command totally failed, no action taken."
+        return
+
+    runcmd = [abspath(__file__), cmd ]
+    if globals['debug']:
+        print "Scheduling execution of command: %s" % runcmd
+    if globals['dry_run']:
+        return
+    pc= PseudoCrontab()
+    try:
+        results = pc.install(jobname, runcmd, hour, minute)
+        if globals['debug']:
+            print "Scheduling results were: %s" % results
+            print "Job %s has been scheduled to run daily at %s" % (jobname, time)
+    except PseudoCrontabException as error:
+        bomb("Scheduling job %s failed: %s" % (jobname, error) )
+
+
+def cmd_unschedule(args):
+    if len(args) == 0:
+        short_schedule(args) 
+        return
+
+    jobs= get_schedule(".*")
+    if globals['debug']:
+        print "jobs list output: %s" % jobs
+    jobname = args[0]
+    if not jobname in jobs:
+        print "Job '%s' not found" % jobname
+        return
+    jobname = ourdomain + "." + jobname
+    if globals['dry_run']:
+       print "requested to delete job %s" % jobname
+       return
+    pc= PseudoCrontab()
+    try:
+        results= pc.uninstall(jobname)
+        print "Job '%s' successfully removed." % args[0]
+    except PseudoCrontabException as error:
+        bomb("Removing job %s failed: %s" % (jobname, error) )
+
+def cmd_repolist(args):
+    if globals['debug']:
+        logmsg("catalogutil settings: %s" % globals)
+        if sys.stdout.isatty():
+            print
+    logmsg("Catalogs in repository:")
+    logmsg(" %s" % list(catlist))
+    if sys.stdout.isatty():
+        print
+    logmsg("Applications in repository:")
+    print_apps(applist)
+
+commandtable= {
+    'autopromote': {'func': cmd_autopromote, 'argrange': [4,4], \
+        'help': 'from-catalog to-catalog days app-name[,app-name ...]\n # conditionally change catalog of app if older than <days>' },
+    'listcat': { 'func': cmd_listcat, 'argrange': [0,1], \
+        'help': '[catalog-name] # list contents of catalog (or all catalogs)' },
+    'setcat': { 'func': cmd_setcat, 'argrange': [1,3], \
+        'help': 'catalog-name[,catalog-name] app-name [app-version]' },
+    'history': { 'func': cmd_history, 'argrange': [0,2], \
+        'help': '[app-name [app-version]] # show app modification history' },
+    'suspend': { 'func': cmd_suspend, 'argrange': [2,2], \
+        'help': 'app-name version # mark app as ineligible for autopromotion' },
+    'unsuspend': { 'func': cmd_unsuspend, 'argrange': [2,2], \
+        'help': 'app-name version # allow app to be autopromoted' },
+    'suspensions': { 'func': cmd_suspensions, 'argrange': [0,0], \
+        'help': '# list out suspended applications' },
+    'schedule': { 'func': cmd_schedule, 'argrange': [0,3], \
+        'help': 'JOBNAME HH:MM "<subcommand> <args> [AND <subcommand>] ..."\n # command to schedule should be quoted as one arg on command line' },
+    'unschedule': { 'func': cmd_unschedule, 'argrange': [0,1], \
+        'help': 'FULL-JOBNAME' },
+    'repolist': { 'func': cmd_repolist, 'argrange': [0,0], \
+        'help': '# list catalogs and applications in repository' },
+}
+
+def do_command(args):
+    if args[0] in commandtable:
+        cmdentry= commandtable[args[0]]
+        if len(args) > 1 and args[1] == 'help':
+            print "Subcommand usage:\n %s %s" % ( args[0], cmdentry['help'])
+            return
+        if (len(args) - 1) < cmdentry['argrange'][0]:
+            logmsg("ERROR: Too few arguments specified for '%s', see help" % args[0])
+            return
+        if (len(args) - 1) > cmdentry['argrange'][1]:
+            logmsg("ERROR: Too many arguments specified for '%s', see help" % args[0])
+            return
+        cmdentry['func'](args[1:])
+    elif args[0] in ["help", "?"]:
+        if len(args[1:2]) and args[1] in commandtable:
+            print "Subcommand usage:\n %s %s" % ( args[1], commandtable[args[1]]['help'])
+            return
+        op.print_help()
+        print
+        for cmd in sorted(commandtable.keys()):
+            print "%-15s %s" % (cmd, commandtable[cmd]['help'])
+        print
+        print "autopromote <days> value may contain decimal point (e.g. '1.5')"
+        print "Use the literal '%s' to separate multiple subcommands on the same line" % \
+            globals['conjunction']
+    else:
+        logmsg("ERROR: Unrecognized command: %s" % args[0])
+
+
+def main():
+    global usage
+    global op
+    prefs_plist_name = 'com.googlecode.munki.munkiimport.plist'
+    prefs_plist_path = os.path.expanduser(os.path.join('~/Library/Preferences',
+                                            prefs_plist_name))
+
+    commands= "|".join(sorted(commandtable.keys()))
+    usage= "Usage: catalogutil [options] {" + commands + "} <args>"
+
+    op= OptionParser(usage=usage)
+    op.add_option("-n", "--dry-run", default=False, action="store_true", help="show actions but do not change anything")
+    op.add_option("-v", "--verbose", default=False, action="store_true", help="show more output for some operations")
+    # this is only needed if the repo contains an app named "AND"
+    op.add_option("--conjunction", default="AND", help=SUPPRESS_HELP)
+    # these are for testing or seriously advanced users
+    # test autopromote - use supplied time instead of current time
+    op.add_option("-T", "--fake-time", default=None, help=SUPPRESS_HELP)
+    # locations of Munki bin for makecatalogs and Munki prefs file
+    op.add_option("--munkibin", default="/usr/local/munki", help=SUPPRESS_HELP)
+    op.add_option("--munkiprefs", default=prefs_plist_path, help=SUPPRESS_HELP)
+    # debug output
+    op.add_option("-D", "--debug", action="store_true", help=SUPPRESS_HELP)
+    # suppress syslog - used when testing a job's syntax before scheduling it
+    op.add_option("--no-logging", action="store_true", help=SUPPRESS_HELP)
+
+    (options, args) = op.parse_args()
+
+    for optionname, value in options.__dict__.items():
+         globals[optionname] = value
+
+    if options.fake_time:
+        globals["fake_time"]= str2time(options.fake_time)
+
+    prefs= getplistobject(globals['munkiprefs'])
+    if prefs is None:
+        bomb("No Munki admin preferences found, please run 'munkiimport --configure' to define the Munki repo_path")
+
+    munki_repo_dir = prefs['repo_path']
+    if not os.path.exists(munki_repo_dir):
+        bomb("Repo directory %s does not exist.  Please check the Munki admin preferences in %s." % (munki_repo_dir, prefs_plist_path))
+
+    MUNKI_PKGSINFO = munki_repo_dir + "/pkgsinfo"
+    if not os.path.exists(MUNKI_PKGSINFO):
+        bomb("Repo subdirectory %s does not exist.  Please run makepkginfo." % munki_repo_dir)
+    load_pkgsinfo(MUNKI_PKGSINFO)
+
+    conjunction = globals['conjunction']
+    if len(args):
+        cmdargs = args + [conjunction]
+        while conjunction in cmdargs:
+            breakindex = cmdargs.index(conjunction)
+            if breakindex == 0:
+                logmsg("WARNING: ignoring extraneous conjunction %s on command line" % conjunction)
+                break
+            do_command(cmdargs[0:breakindex])
+            cmdargs = cmdargs[breakindex+1:]
+        if RunMakeCatalogsOnExit:
+            run_makecatalogs()
+    else:
+        do_command(["help"])
+
+if __name__ == "__main__":
+    main()

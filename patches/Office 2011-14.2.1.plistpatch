@@ -1,0 +1,49 @@
+# Edits for Office 2011-14.2.1 updater
+
+# mark as an update for Office2011
+set name "Office2011_update"
+delete update_for
+add update_for array
+add update_for:0 string "Office2011"
+
+# describe the prerequisites needed before the updater can be installed
+delete requires
+add requires array
+add requires:0 string "Office2011_update-14.1.0"
+
+# Tell Munki how to detect that this package is installed
+delete installs
+add installs array 
+add installs:0 dict
+add installs:0:type string "plist"
+add installs:0:path string "/Applications/Microsoft Office 2011/Office/MicrosoftComponentPlugin.framework/Resources/Info.plist"
+add installs:0:CFBundleShortVersionString string "14.2.1"
+
+# if any of these applications are running, do not allow install
+delete blocking_applications
+add blocking_applications array
+add blocking_applications:1 string "MSN Messenger"
+add blocking_applications:2 string "Microsoft AutoUpdate"
+add blocking_applications:3 string "Microsoft Cert Manager"
+add blocking_applications:4 string "Microsoft Chart Converter"
+add blocking_applications:5 string "Microsoft Clip Gallery"
+add blocking_applications:6 string "Microsoft Entourage"
+add blocking_applications:7 string "Microsoft Outlook"
+add blocking_applications:8 string "Microsoft Error Reporting"
+add blocking_applications:9 string "Microsoft Excel"
+add blocking_applications:10 string "Microsoft Graph"
+add blocking_applications:11 string "Microsoft Help Viewer"
+add blocking_applications:12 string "Microsoft Language Register"
+add blocking_applications:13 string "Microsoft Communicator"
+add blocking_applications:14 string "Microsoft Messenger"
+add blocking_applications:15 string "Microsoft PowerPoint"
+add blocking_applications:16 string "Microsoft Query"
+add blocking_applications:17 string "Microsoft Word"
+add blocking_applications:18 string "My Day"
+add blocking_applications:19 string "Organization Chart"
+add blocking_applications:20 string "Expression Media"
+add blocking_applications:21 string "Remote Desktop Connection"
+add blocking_applications:22 string "Opera"
+add blocking_applications:23 string "Google Chrome"
+add blocking_applications:24 string "Firefox"
+add blocking_applications:25 string "Safari"

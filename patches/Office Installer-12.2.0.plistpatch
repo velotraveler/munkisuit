@@ -1,0 +1,13 @@
+# Edits for Office Installer-12.2.0
+
+# set a new "name" key - old one was "Office Installer", too ambiguous
+set name "Office2008"
+
+# Tell Munki how to detect that the package is installed
+delete installs
+add installs array 
+add installs:0 dict
+add installs:0:type string "plist"
+add installs:0:path string "/Applications/Microsoft Office 2008/Office/MicrosoftComponentPlugin.framework/Resources/Info.plist"
+add installs:0:CFBundleShortVersionString string "12.2.0"
+

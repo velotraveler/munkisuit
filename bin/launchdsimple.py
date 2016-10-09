@@ -111,7 +111,7 @@ class PseudoCrontab(object):
             self.bomb("running 'sudo' with args: " % launchargs, error)
         if  not os.path.isfile(agentfilename):
             self.bomb("plist file missing even though sudo didn't fail: %s" % agentfilename)
-        return [launchargs, output]
+        return [joblabel[len(self.prefix):], launchargs, output]
 
     def uninstall(self, label=""):
         '''

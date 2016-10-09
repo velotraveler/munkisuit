@@ -55,6 +55,7 @@ to update at 2:00 AM and you figure it will be done by 3:00 AM:
 ```
    # check for Flash and Silverlight updates in "testing"  more than 3 days old
    catalogutil schedule WebPlugins 03:15 "autopromote testing production 3 AdobeFlashPlayer,Silverlight"
+
    # check for Firefox and MS Office updates  in "testing" more than 6 days old
    catalogutil schedule Apps 03:30 "autopromote testing production 6 Firefox,Office2011_update"
 ```

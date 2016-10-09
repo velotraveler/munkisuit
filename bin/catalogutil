@@ -50,7 +50,7 @@ globals = {}
 applist = []
 catlist = set()
 catkey = '_catalogutil_operations'
-ourdomain = 'munkisuit.catalogutil'
+ourdomain = 'munkisuit.catalogutil.'
 RunMakeCatalogsOnExit = False
 
 def logmsg(message, verbosemsg=False):
@@ -362,7 +362,7 @@ def get_schedule(jobmatch):
     pc= PseudoCrontab()
     try:
         output= pc.list(ourdomain + jobmatch)
-        return [line[len(ourdomain)+1:] for line in output]
+        return [line[len(ourdomain):] for line in output]
     except PseudoCrontabException as error:
         bomb("Cannot access sudo/launchdctl to list jobs: %s" % error)
 
@@ -375,9 +375,9 @@ def short_schedule(args):
         bomb("This command must be run in an interactive session")
     if len(args) > 1:
         return None
-    jobmatch= ".*"
+    jobmatch= "*"
     if len(args) == 1:
-        jobmatch= "." + args[0] + ".*"
+        jobmatch= args[0] + "*"
     output= get_schedule(jobmatch)
     for line in output:
         print line
@@ -389,20 +389,20 @@ def cmd_schedule(args):
 
     (jobname, time, cmd)= args[0:3]
 
-    for existing_item in get_schedule(".*"):
+    for existing_item in get_schedule("*"):
         if existing_item.startswith(jobname + "."):
             print "Job '%s' already exists, please pick another name" % jobname
             return
 
-    jobname = ourdomain + "." + jobname
+    jobname = ourdomain + jobname
     timeargs= time.split(':')
     if len(timeargs) != 2 or not timeargs[0].isdigit() or not timeargs[1].isdigit():
         bomb("Invalid time specification '%s', see help" % time)
     (hour, minute) = timeargs
 
     testcmd = ["sh", "-c", "%s --dry-run --no-logging %s" % (abspath(__file__), cmd) ]
-    if globals['debug']:
-        print "Testing execution: %s" % testcmd
+    runcmd =  ["sh", "-c", "%s %s" % (abspath(__file__), cmd) ]
+    print "Testing that your command parses correctly: %s" % testcmd
     try:
         output = subprocess.check_output(testcmd, stderr= subprocess.STDOUT)
         failed = False
@@ -423,13 +423,11 @@ def cmd_schedule(args):
             print "non-existent application is probably a typo"
             print "use 'unschedule' command to remove job before retrying"
             print "-------------------------------------------"
-        print "Command '%s' installed successfully." % cmd
     except (subprocess.CalledProcessError, StandardError) as error:
         print error.output
         print "Test of command totally failed, no action taken."
         return
 
-    runcmd = [abspath(__file__), cmd ]
     if globals['debug']:
         print "Scheduling execution of command: %s" % runcmd
     if globals['dry_run']:
@@ -439,7 +437,7 @@ def cmd_schedule(args):
         results = pc.install(jobname, runcmd, hour, minute)
         if globals['debug']:
             print "Scheduling results were: %s" % results
-            print "Job %s has been scheduled to run daily at %s" % (jobname, time)
+        print "Job '%s' has been scheduled to run daily at %s" % (results[0][len(ourdomain):], time)
     except PseudoCrontabException as error:
         bomb("Scheduling job %s failed: %s" % (jobname, error) )
 
@@ -449,14 +447,14 @@ def cmd_unschedule(args):
         short_schedule(args) 
         return
 
-    jobs= get_schedule(".*")
+    jobs= get_schedule("*")
     if globals['debug']:
         print "jobs list output: %s" % jobs
     jobname = args[0]
     if not jobname in jobs:
         print "Job '%s' not found" % jobname
         return
-    jobname = ourdomain + "." + jobname
+    jobname = ourdomain + jobname
     if globals['dry_run']:
        print "requested to delete job %s" % jobname
        return

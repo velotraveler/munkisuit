@@ -85,7 +85,7 @@ application:
 Omitting _APP-NAME_ lists out all of catalogutil's change history in the
 repository.  Specifiying _VERSION_ will show history just for that
 particular version of the application.
-* If a scheduled job changes anything, notices from catalogtuil
+* If a scheduled job changes anything, notices from catalogutil
 will appear in syslog, including the output of makecatalogs.
 * To see previously logged events in syslog:
 ```
@@ -162,11 +162,22 @@ After you select this box, you will be prompted for your password.
 ####Folders & Integrations
 *   Configure AutoPkg - select "Verbose AutoPkg Run"
 *   Configure Munki Tools
-..* - should already have correct Munki repo
-..* - select "Enable MunkiSetDefaultCatalogProcessor"
+
+... - should already have correct Munki repo
+
+... - select "Enable MunkiSetDefaultCatalogProcessor"
 ###Start the Downloads
 * go back to "Repos & Recipes" pane, and click on "Run Recipes Now" in middle of pane
 * you should see a status display as each recipe runs
+
+###Confirm that AutoPkgr will wake up automatically
+To confirm that you've told AutoPkgr to schedule unattended runs on a daily
+basis, make sure its launchd job is on the system:
+```
+$ sudo launchctl list | grep schedule
+Password:
+-	0	com.lindegroup.AutoPkgr.schedule
+```
 
 ###Create your manifests
 * Follow the standard Munki documentation for creating a manifest.  A

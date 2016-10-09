@@ -82,8 +82,8 @@ application:
 ```
    catalogutil history [<APP-NAME> [<VERSION>]]
 ```
-Omitting <APP-NAME> lists out all of catalogutil's change history in the
-repository.  Specifiying the <VERSION> will show history just for that
+Omitting _APP-NAME_ lists out all of catalogutil's change history in the
+repository.  Specifiying _VERSION_ will show history just for that
 particular version of the application.
 * If a scheduled job changes anything, notices from catalogtuil
 will appear in syslog, including the output of makecatalogs.

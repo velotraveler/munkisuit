@@ -144,11 +144,11 @@ In the lower pane titled "Recipes":
 *   type "munki" in the search filter box titled "Filter recipes"      
 *   select the recipes that import the products you want into Munki,
 for example:
-..* AdobeFlashPlayer.munki
-..* Firefox.munki
-..* MSOffice2011Updates.munki
-..* Silverlight.munki
-..* (etc. etc.)
+  * AdobeFlashPlayer.munki
+  * Firefox.munki
+  * MSOffice2011Updates.munki
+  * Silverlight.munki
+  * (etc. etc.)
 If you don't see everything you need, search online for a recipe for
 your desired app, then check to see if that recipe repository is already
 in AutoPkgr's option in the "Repositories" pane, or add it manually if
@@ -163,9 +163,9 @@ After you select this box, you will be prompted for your password.
 *   Configure AutoPkg - select "Verbose AutoPkg Run"
 *   Configure Munki Tools
 
-... - should already have correct Munki repo
+    - should already have correct Munki repo
 
-... - select "Enable MunkiSetDefaultCatalogProcessor"
+    - select "Enable MunkiSetDefaultCatalogProcessor"
 ###Start the Downloads
 * go back to "Repos & Recipes" pane, and click on "Run Recipes Now" in middle of pane
 * you should see a status display as each recipe runs

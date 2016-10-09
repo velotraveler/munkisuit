@@ -75,6 +75,11 @@ will display as "Apps.3.30".  To remove it from launchd, you would do:
 ```
    catalogutil unschedule Apps.3.30
 ```
+As shown above, you can promote multiple applications at the same time
+by separating them with commas.  If the application name has a space in
+it, like "Power Manager", use standard shell escapes such as adding a
+backslash ("Power\ Manager") or adding single quotes around each affected
+application name.
 
 ##Monitoring AutoPkgr/autopkg/catalogutil activities
 * If you're interested in what has changed recently for a particular

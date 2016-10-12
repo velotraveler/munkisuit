@@ -122,14 +122,19 @@ specified.
 
 List out all catalogs and applications in the repository.
 
-**schedule**       _JOBNAME_ HH:MM "<subcommand> <args> [AND <subcommand>] ..."
+**schedule**       _JOBNAME_ HH:MM "_subcommand_ _args_ [AND _subcommand>_ ..."
 
 Create a launchd job to run catalogutil with the specified command string
 at the specified time every day.  _JOBNAME_ combined with the specified
 time will be used to name the job so it can be viewed or deleted later.
 The command string must be quoted so the shell parses it as one argument.
 With no arguments, **schedule** lists all currently configured jobs.  With
-just a _JOBNAME_ argument, jobs that match that string are listed.
+just a _JOBNAME_ argument, jobs that match that string are listed.  The
+job is first tested by invoking **catalogutil** with the "--dry-run" option 
+and the requested subcommand(s).  If no errors are detected then the job
+will be installed via launchctl.  A password will probably be requested
+by sudo since root privilege is needed to install jobs that run when
+the user is not logged in, but the job still runs as the current user.
 
 **setcat**          catalog-name[,catalog-name] _app-name_ [_app-version_]
 

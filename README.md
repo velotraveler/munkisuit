@@ -92,7 +92,7 @@ application name.
 
 ###Subcommands
 
-*autopromote*     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
+**autopromote**     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
 
 Conditionally change catalog of an app if older than _days_, which can
 be a floating-point number if desired.  _app-name_ can be a single name
@@ -102,7 +102,7 @@ _to-catalog_ if they were installed into the Munki repository longer
 than _days_ ago.  Applications marked as "suspended" see below will
 be skipped.
 
-history         [app-name [app-version]]
+**history**         [app-name [app-version]]
 
 Show an app's modification history.  This history is stored in the pkgsinfo
 file of the app, under the plist key "_catalogutil_operations".  If the
@@ -111,25 +111,25 @@ application version is specified as "latest", the most recent version
 added to the repository (based on the key "_metadata.creation_date")
 will be shown.
 
-listcat         [catalog-name]
+**listcat**         [catalog-name]
 
 Lists out contents of the specified catalog, or of all catalogs if none
 specified.
 
-repolist
+**repolist**
 
 List out all catalogs and applications in the repository.
 
-schedule        _JOBNAME_ HH:MM "<subcommand> <args> [AND <subcommand>] ..."
+**schedule**       _JOBNAME_ HH:MM "<subcommand> <args> [AND <subcommand>] ..."
 
 Create a launchd job to run catalogutil with the specified command string
 at the specified time every day.  _JOBNAME_ combined with the specified
 time will be used to name the job so it can be viewed or deleted later.
 The command string must be quoted so the shell parses it as one argument.
-With no arguments, "schedule" lists all currently configured jobs.  With
+With no arguments, **schedule** lists all currently configured jobs.  With
 just a _JOBNAME_ argument, jobs that match that string are listed.
 
-setcat          catalog-name[,catalog-name] _app-name_ [_app-version_]
+**setcat**          catalog-name[,catalog-name] _app-name_ [_app-version_]
 
 Set the catalog(s) of an application.  If the _app-version_ is omitted,
 either a list of eligible apps and their versions will be printed or
@@ -137,25 +137,25 @@ if there is only one version of the app present, that app will be acted
 on.  Specifying "latest" as the _app-version_ will choose the most recent
 version.
 
-suspend         app-name version
+**suspend**         app-name version
 
-Marks an app as ineligible for autopromotion (see _autopromote_ above)
+Marks an app as ineligible for autopromotion (see **autopromote** above)
 
-suspensions
+**suspensions**
 
 Lists out all apps marked as suspended.
 
-unschedule      _FULL-JOBNAME_
+**unschedule**      _FULL-JOBNAME_
 
 Remove the scheduled job named _FULL-JOBNAME_ (the original name
 plus the scheduled time).  To see the names of all jobs, use the
 "schedule" subcommand.
 
-unsuspend       app-name version
+**unsuspend**       app-name version
 
 Allow an app to be autopromoted again after suspending it.
 
-AND
+**AND**
 
 Not really a subcommand, but if used tells _catalogutil_ to run the
 subsequent arguments as another subcommand.  This can be used to

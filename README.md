@@ -81,14 +81,16 @@ it, like "Power Manager", use standard shell escapes such as adding a
 backslash ("Power\ Manager") or adding single quotes around each affected
 application name.
 
+---
+
 ## Catalogutil - Command Summary
 ###Options
 
-  -n, --dry-run         show actions but do not change anything
+  -n, --dry-run     -   show actions but do not change anything
 
-  -v, --verbose         show more output for some operations
+  -v, --verbose     -   show more output for some operations
 
-  -T, --fake-time       for testing autopromote - use supplied time instead of current time
+  -T, --fake-time   -   for testing autopromote - use supplied time instead of current time
 
 ###Subcommands
 
@@ -164,6 +166,8 @@ strange reason this feature conflicts with an application name
 or version, you can assign a different keyword for this purpose
 using the otherwise undocumented "--conjunction" option.
 
+---
+
 ##Monitoring AutoPkgr/autopkg/catalogutil activities
 * If you're interested in what has changed recently for a particular
 application:
@@ -192,6 +196,8 @@ or "autopkg" or "AutoPkgr")
 ```
 log show --style syslog --predicate 'senderImagePath contains[cd] "TimeMachine"' --info
 ```
+
+---
 
 ##SOFTWARE INSTALLATION - NEW REPOSITORY
 If you are building a new Munki server, use these scripts to speed

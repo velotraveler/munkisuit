@@ -157,7 +157,7 @@ Allow an app to be autopromoted again after suspending it.
 
 **AND**
 
-Not really a subcommand, but if used tells _catalogutil_ to run the
+Not really a subcommand, but if used tells **catalogutil** to run the
 subsequent arguments as another subcommand.  This can be used to
 schedule multiple commands to run in the same job.  If for some
 strange reason this feature conflicts with an application name

@@ -92,7 +92,7 @@ application name.
 
 ###Subcommands
 
-autopromote     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
+*autopromote*     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
 
 Conditionally change catalog of an app if older than _days_, which can
 be a floating-point number if desired.  _app-name_ can be a single name

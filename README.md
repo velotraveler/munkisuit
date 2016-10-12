@@ -11,7 +11,7 @@ such as autopromote, and display an inventory of the repository.
 Most Munki tasks that require editing a plist file can be automated
 (or documented) using these scripts.
 
-##FEATURES
+##Features
 * Can automatically promote applications from one catalog to another
 based on the age of the application.  This "autopromote" functionality
 gives you a "hands off" repository where AutoPkgr/autopkg installs
@@ -35,7 +35,7 @@ this command with a "plistpatchfile" lets you document and automate
 any one-off plist changes instead of editing them by hand.  See
 the "patches" directory for some examples.
 
-##SOFTWARE INSTALLATION - EXISTING REPOSITORY
+##Software Installation - Existing Repository
 * Log in as the same user that manages autopkg/AutoPkgr/munki.  The
 Munki admin preferences should already point to your repository.  This
 user is assumed to be able to sudo to root when needed in order to
@@ -80,6 +80,89 @@ by separating them with commas.  If the application name has a space in
 it, like "Power Manager", use standard shell escapes such as adding a
 backslash ("Power\ Manager") or adding single quotes around each affected
 application name.
+
+## Catalogutil - Command Summary
+###Options
+
+  -n, --dry-run         show actions but do not change anything
+
+  -v, --verbose         show more output for some operations
+
+  -T, --fake-time       for testing autopromote - use supplied time instead of current time
+
+###Subcommands
+
+autopromote     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
+
+Conditionally change catalog of an app if older than _days_, which can
+be a floating-point number if desired.  _app-name_ can be a single name
+or a comma-separated list of names.  All versions of the application
+that are present in the specified _from-catalog_ will be moved into
+_to-catalog_ if they were installed into the Munki repository longer
+than _days_ ago.  Applications marked as "suspended" see below will
+be skipped.
+
+history         [app-name [app-version]]
+
+Show an app's modification history.  This history is stored in the pkgsinfo
+file of the app, under the plist key "_catalogutil_operations".  If the
+application version is not specified, all versions are shown.  If the
+application version is specified as "latest", the most recent version
+added to the repository (based on the key "_metadata.creation_date")
+will be shown.
+
+listcat         [catalog-name]
+
+Lists out contents of the specified catalog, or of all catalogs if none
+specified.
+
+repolist
+
+List out all catalogs and applications in the repository.
+
+schedule        _JOBNAME_ HH:MM "<subcommand> <args> [AND <subcommand>] ..."
+
+Create a launchd job to run catalogutil with the specified command string
+at the specified time every day.  _JOBNAME_ combined with the specified
+time will be used to name the job so it can be viewed or deleted later.
+The command string must be quoted so the shell parses it as one argument.
+With no arguments, "schedule" lists all currently configured jobs.  With
+just a _JOBNAME_ argument, jobs that match that string are listed.
+
+setcat          catalog-name[,catalog-name] _app-name_ [_app-version_]
+
+Set the catalog(s) of an application.  If the _app-version_ is omitted,
+either a list of eligible apps and their versions will be printed or
+if there is only one version of the app present, that app will be acted
+on.  Specifying "latest" as the _app-version_ will choose the most recent
+version.
+
+suspend         app-name version
+
+Marks an app as ineligible for autopromotion (see _autopromote_ above)
+
+suspensions
+
+Lists out all apps marked as suspended.
+
+unschedule      _FULL-JOBNAME_
+
+Remove the scheduled job named _FULL-JOBNAME_ (the original name
+plus the scheduled time).  To see the names of all jobs, use the
+"schedule" subcommand.
+
+unsuspend       app-name version
+
+Allow an app to be autopromoted again after suspending it.
+
+AND
+
+Not really a subcommand, but if used tells _catalogutil_ to run the
+subsequent arguments as another subcommand.  This can be used to
+schedule multiple commands to run in the same job.  If for some
+strange reason this feature conflicts with an application name
+or version, you can assign a different keyword for this purpose
+using the otherwise undocumented "--conjunction" option.
 
 ##Monitoring AutoPkgr/autopkg/catalogutil activities
 * If you're interested in what has changed recently for a particular

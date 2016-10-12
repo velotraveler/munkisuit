@@ -161,6 +161,7 @@ def load_pkgsinfo(pkgsinfopath):
 
 def cmd_autopromote(args):
 
+    changed = False
     now = datetime.now()
     if globals['fake_time']:
        now= globals['fake_time']
@@ -182,7 +183,8 @@ def cmd_autopromote(args):
     if not tocat in catlist:
         logmsg("WARNING: to-catalog '%s' not currently in repo, will be created if candidate application found." % tocat)
 
-    for appname in applist.split(","):
+    applications_to_promote = applist.split(",")
+    for appname in applications_to_promote:
         apps= get_unsuspended_app_in_catalog(appname, fromcat)
         if len(apps) == 0:
             continue  # no candidates for promotion for this app
@@ -192,15 +194,18 @@ def cmd_autopromote(args):
         for app in apps:
             age = now - app['creation_date']
             age = age.total_seconds() / 86400
-            logmsg("app '%s' version '%s' has age %0.1f" % (app['name'], app['version'], age), verbosemsg= True)
+            logmsg("app '%s' version '%s' has age %0.1f" % (app['name'], app['version'], age), verbosemsg=True)
             if (age > daysvalue):
                 # time to promote!
-                plist=app['plist']
-                newcats= set(plist['catalogs'])
+                plist = app['plist']
+                newcats = set(plist['catalogs'])
                 newcats.remove(fromcat)
                 newcats.add(tocat)
-                plist['catalogs']= list(newcats)
+                plist['catalogs'] = list(newcats)
                 update_app(app, "Autopromoting app='%s' version='%s' after %0.1f days from catalog '%s' to catalog '%s'" % (app['name'], app['version'], daysvalue, fromcat, tocat) )
+                changed = True
+    if not changed:
+        logmsg("autopromote: no versions of apps %s in catalog '%s' found older than %0.1f days" % (applications_to_promote, fromcat, daysvalue) )
 
 def str2time(str):
     try:

@@ -56,8 +56,8 @@ class PseudoCrontab(object):
             for line in output.split("\n"):
                 if len(line) == 0:
                     break
-                fields= line.split()
-                if len(fields) != 3:
+                fields= line.split(None,3)
+                if len(fields) < 3:
                     self.bomb("unexpected output from 'sudo launchctl list: %s'" % line)
                 job= fields[2]
                 if fnmatch(job, self.prefix + labelmatch):

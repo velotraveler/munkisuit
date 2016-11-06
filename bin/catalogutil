@@ -369,7 +369,7 @@ def get_schedule(jobmatch):
         output= pc.list(ourdomain + jobmatch)
         return [line[len(ourdomain):] for line in output]
     except PseudoCrontabException as error:
-        bomb("Cannot access sudo/launchdctl to list jobs: %s" % error)
+        bomb("Cannot access sudo/launchctl to list jobs: %s" % error)
 
 def short_schedule(args):
     '''

@@ -6,7 +6,7 @@ from fnmatch import fnmatch
 from tempfile import NamedTemporaryFile
 
 myprefix = "com.github.velotraveler.pseudocron."
-launchagentdir = "/Library/LaunchAgents"
+launchd_dir = "/Library/LaunchDaemons"
 
 class PseudoCrontabException(Exception):
     '''Exception for launchctl errors and other errors from
@@ -19,7 +19,7 @@ class PseudoCrontab(object):
     Simulate adding/removing user crontab entries under MacOS. Since we
     want to simulate a real crontab's ability to run jobs under a specific
     user ID even when the user is not logged in, we need to put this job
-    in /Library/LaunchAgents and thus require root privilege.  We use sudo
+    in /Library/LaunchDaemons and thus require root privilege.  We use sudo
     to get root access and thus the user will need to type in their
     password when sudo runs if it is not already cached.
 
@@ -88,7 +88,7 @@ class PseudoCrontab(object):
         if hour >= 24 or minute >= 60:
             self.bomb("hour or minute args are out of range, see 'man launchd.plist'")
         joblabel = self.prefix + label + ".%d.%d" % (hour, minute)
-        agentfilename = os.path.join(launchagentdir, joblabel + ".plist")
+        agentfilename = os.path.join(launchd_dir, joblabel + ".plist")
 
         # create temporary file with plist from args
         plistfile = NamedTemporaryFile()
@@ -118,7 +118,7 @@ class PseudoCrontab(object):
         remove scheduled entry from launchd - <label> must be exact match
         '''
         joblabel = self.prefix + label
-        agentfilename = os.path.join(launchagentdir, joblabel + ".plist")
+        agentfilename = os.path.join(launchd_dir, joblabel + ".plist")
         launchargs = ["sudo", "sh", "-c", "launchctl remove '%s' && rm -f '%s'" % (joblabel, agentfilename)]
         try:
             output = subprocess.check_output(launchargs)

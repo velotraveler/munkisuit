@@ -11,11 +11,7 @@ such as autopromote, and display an inventory of the repository.
 Most Munki tasks that require editing a plist file can be automated
 (or documented) using these scripts.
 
-<<<<<<< HEAD
 ## FEATURES
-=======
-##Features
->>>>>>> b2ff78d60bf6ea6b476e601b5f3abe1501ac6c72
 * Can automatically promote applications from one catalog to another
 based on the age of the application.  This "autopromote" functionality
 gives you a "hands off" repository where AutoPkgr/autopkg installs
@@ -39,11 +35,7 @@ this command with a "plistpatchfile" lets you document and automate
 any one-off plist changes instead of editing them by hand.  See
 the "patches" directory for some examples.
 
-<<<<<<< HEAD
 ## SOFTWARE INSTALLATION - EXISTING REPOSITORY
-=======
-##Software Installation - Existing Repository
->>>>>>> b2ff78d60bf6ea6b476e601b5f3abe1501ac6c72
 * Log in as the same user that manages autopkg/AutoPkgr/munki.  The
 Munki admin preferences should already point to your repository.  This
 user is assumed to be able to sudo to root when needed in order to
@@ -210,13 +202,7 @@ or "autopkg" or "AutoPkgr")
 log show --style syslog --predicate 'senderImagePath contains[cd] "TimeMachine"' --info
 ```
 
-<<<<<<< HEAD
 ## SOFTWARE INSTALLATION - NEW REPOSITORY
-=======
----
-
-##SOFTWARE INSTALLATION - NEW REPOSITORY
->>>>>>> b2ff78d60bf6ea6b476e601b5f3abe1501ac6c72
 If you are building a new Munki server, use these scripts to speed
 things up:
 

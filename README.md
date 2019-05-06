@@ -84,7 +84,7 @@ application name.
 ---
 
 ## Catalogutil - Command Summary
-###Options
+### Options
 
   -n, --dry-run     -   show actions but do not change anything
 
@@ -92,7 +92,7 @@ application name.
 
   -T, --fake-time   -   for testing autopromote - use supplied time instead of current time
 
-###Subcommands
+### Subcommands
 
 **autopromote**     _from-catalog_ _to-catalog_ _days_ _app-name[,app-name ...]_
 
